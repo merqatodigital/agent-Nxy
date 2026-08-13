@@ -47,8 +47,6 @@ class NyxAgentRuntime {
     console.log('[Nyx Runtime] Core Agent Runtime Initialized Successfully');
   }
 
-  // --- OBJECTIVES ---
-
   public async createObjective(params: {
     title: string;
     instruction: string;
@@ -61,7 +59,6 @@ class NyxAgentRuntime {
 
     const timestamp = new Date().toISOString();
     const id = `obj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-
     const objective: AgentObjective = {
       id,
       title: params.title,
@@ -75,7 +72,6 @@ class NyxAgentRuntime {
     };
 
     await saveObjective(objective);
-
     await logActivityEvent({
       id: `evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       objectiveId: id,
@@ -84,7 +80,6 @@ class NyxAgentRuntime {
       createdAt: timestamp
     });
 
-    // Plan & queue tasks
     const context = this.contextProvider();
     const prospectsToUse = params.prospects || context.prospectLeads || [];
     const tasks = await this.planner.planObjectiveTasks(objective, prospectsToUse);
@@ -107,11 +102,9 @@ class NyxAgentRuntime {
     await this.init();
     const objective = await getObjective(id);
     if (!objective) return null;
-
     objective.status = 'paused';
     objective.updatedAt = new Date().toISOString();
     await saveObjective(objective);
-
     await logActivityEvent({
       id: `evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       objectiveId: id,
@@ -119,7 +112,6 @@ class NyxAgentRuntime {
       message: `Objective '${objective.title}' paused by operator.`,
       createdAt: new Date().toISOString()
     });
-
     return objective;
   }
 
@@ -127,11 +119,9 @@ class NyxAgentRuntime {
     await this.init();
     const objective = await getObjective(id);
     if (!objective) return null;
-
     objective.status = 'active';
     objective.updatedAt = new Date().toISOString();
     await saveObjective(objective);
-
     await logActivityEvent({
       id: `evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       objectiveId: id,
@@ -139,7 +129,6 @@ class NyxAgentRuntime {
       message: `Objective '${objective.title}' resumed.`,
       createdAt: new Date().toISOString()
     });
-
     return objective;
   }
 
@@ -153,14 +142,10 @@ class NyxAgentRuntime {
     return getObjectives(statusFilter);
   }
 
-  // --- TASKS ---
-
   public async getTasks(objectiveId?: string, statusFilter?: TaskStatus): Promise<AgentTask[]> {
     await this.init();
     return getTasks(objectiveId, statusFilter);
   }
-
-  // --- APPROVALS ---
 
   public async getApprovals(statusFilter?: ApprovalStatus): Promise<ApprovalItem[]> {
     await this.init();
@@ -175,20 +160,21 @@ class NyxAgentRuntime {
   ): Promise<ApprovalItem | null> {
     await this.init();
     const approval = await getApprovalItem(approvalId);
-    if (!approval) return null;
+    if (!approval || approval.status !== 'pending') return approval || null;
 
     const timestamp = new Date().toISOString();
     approval.status = decision;
     approval.decidedAt = timestamp;
     approval.decidedBy = decidedBy;
     approval.note = note;
-
     await saveApprovalItem(approval);
 
     const task = await getTask(approval.taskId);
     if (task) {
       if (decision === 'approved') {
-        task.status = 'queued'; // return to queue to run tool
+        task.status = 'queued';
+        task.lastError = undefined;
+        task.arguments = { ...(task.arguments || {}), __operatorApproved: true, __approvalId: approval.id };
         await saveTask(task);
 
         await logActivityEvent({
@@ -196,18 +182,17 @@ class NyxAgentRuntime {
           objectiveId: approval.objectiveId,
           taskId: task.id,
           type: 'APPROVAL_GRANTED',
-          message: `Approval GRANTED for task '${approval.toolName}'. Re-queued for execution.`,
+          message: `Approval GRANTED for task '${approval.toolName}'. Executing approved action once.`,
+          metadata: { approvalId: approval.id, toolName: approval.toolName },
           createdAt: timestamp
         });
 
-        // Immediately attempt run
         await this.scheduler.executeTaskNow(task.id);
       } else {
         task.status = 'cancelled';
         task.lastError = `Rejected by ${decidedBy}: ${note || 'Operator declined execution'}`;
         task.completedAt = timestamp;
         await saveTask(task);
-
         await logActivityEvent({
           id: `evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           objectiveId: approval.objectiveId,
@@ -222,14 +207,10 @@ class NyxAgentRuntime {
     return approval;
   }
 
-  // --- ACTIVITY EVENTS ---
-
   public async getActivityEvents(limit = 50, objectiveId?: string): Promise<ActivityEvent[]> {
     await this.init();
     return getActivityEvents(limit, objectiveId);
   }
-
-  // --- STATUS ---
 
   public async getRuntimeStatus(): Promise<RuntimeStatus> {
     await this.init();
