@@ -12,9 +12,12 @@ import {
   Sliders, 
   CheckCircle2, 
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { OpenRouterModel } from '../types';
+import { useTheme } from '../context/ThemeContext';
 
 interface HeaderProps {
   activeTab: string;
@@ -37,6 +40,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenKeyModal,
   isAgentRunning
 }) => {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <header className="bg-[#050505] border-b grid-line text-gray-300 sticky top-0 z-40">
       {/* Top Banner Bar */}
@@ -133,6 +138,30 @@ export const Header: React.FC<HeaderProps> = ({
             <Key className="w-3.5 h-3.5" />
             <span>{hasApiKey ? 'OpenRouter Active' : 'Configure Key'}</span>
             <span className={`w-2 h-2 rounded-full ${hasApiKey ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+          </button>
+
+          {/* Light / Dark Mode Global Toggle Button */}
+          <button
+            id="theme-toggle-btn"
+            onClick={toggleTheme}
+            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${
+              theme === 'light'
+                ? 'bg-amber-500/10 text-amber-600 border-amber-500/30 hover:bg-amber-500/20 shadow-sm'
+                : 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20 glow-blue'
+            }`}
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400 animate-spin-slow" />
+                <span className="uppercase text-[11px] tracking-wider">Light Mode</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-indigo-600" />
+                <span className="uppercase text-[11px] tracking-wider">Dark Mode</span>
+              </>
+            )}
           </button>
 
           {/* Engine Status Badge */}

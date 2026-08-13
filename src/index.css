@@ -4,8 +4,38 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+:root {
+  --bg-primary: #050505;
+  --bg-card: #0a0a0a;
+  --bg-card-secondary: #050505;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+}
+
+html.light {
+  --bg-primary: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-secondary: #f1f5f9;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+}
+
+html.light body {
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+html.dark body {
+  background-color: #050505;
+  color: #d1d5db;
+}
+
 .grid-line {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--border-color);
 }
 
 .glow-emerald {
@@ -16,23 +46,87 @@
   box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
 }
 
-body {
-  background-color: #050505;
-  color: #d1d5db;
-}
-
-/* Custom minimal dark scrollbars */
+/* Custom minimal scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-::-webkit-scrollbar-track {
+
+html.dark ::-webkit-scrollbar-track {
   background: #050505;
 }
-::-webkit-scrollbar-thumb {
+html.dark ::-webkit-scrollbar-thumb {
   background: #262626;
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover {
+html.dark ::-webkit-scrollbar-thumb:hover {
   background: #10b981;
+}
+
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+
+/* Light mode specific element helpers for cards & inputs */
+html.light .bg-\[\#0a0a0a\] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light .bg-\[\#050505\] {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light .bg-\[\#080808\] {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light .text-white {
+  color: #0f172a !important;
+}
+
+html.light .text-gray-200,
+html.light .text-gray-300 {
+  color: #1e293b !important;
+}
+
+html.light .text-gray-400,
+html.light .text-gray-500 {
+  color: #475569 !important;
+}
+
+html.light .text-gray-600 {
+  color: #64748b !important;
+}
+
+html.light input, 
+html.light select, 
+html.light textarea {
+  color: #0f172a !important;
+}
+
+html.light select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+html.light .divide-white\/10 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .hover\:bg-white\/5:hover {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .shadow-2xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
 }
