@@ -54,10 +54,10 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white uppercase font-futura flex items-center gap-1">
-                <span>merqato</span>
-                <span className="text-[#B90000]">.digital</span>
-                <span className="text-gray-500 font-normal text-xs font-mono ml-1">// SDR AGENT</span>
+              <h1 className="text-base sm:text-lg font-medium sm:font-semibold tracking-wider text-white uppercase font-futura flex items-center gap-0.5">
+                <span className="text-white">merqato</span>
+                <span className="text-[#B90000] font-semibold">.digital</span>
+                <span className="text-gray-500 font-normal text-xs font-mono ml-1.5">// SDR AGENT</span>
               </h1>
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                 LangGraph Cycle

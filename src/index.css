@@ -5,8 +5,9 @@
 }
 
 .font-futura, .futura-font, .brand-futura {
-  font-family: 'Futura', 'Futura PT', 'Futura Bold', 'Jost', 'Century Gothic', system-ui, -apple-system, sans-serif !important;
-  letter-spacing: -0.02em;
+  font-family: 'Futura', 'Futura PT', 'Jost', 'Century Gothic', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 :root {

@@ -70,10 +70,10 @@ export const AgentDrawer: React.FC<AgentDrawerProps> = ({
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h2 className="text-sm font-extrabold text-white uppercase font-futura flex items-center gap-1">
+                  <h2 className="text-sm font-medium tracking-wider text-white uppercase font-futura flex items-center gap-0.5">
                     <span>merqato</span>
-                    <span className="text-[#B90000]">.digital</span>
-                    <span className="text-emerald-400 font-bold ml-1">// NYX AGENT</span>
+                    <span className="text-[#B90000] font-semibold">.digital</span>
+                    <span className="text-emerald-400 font-normal font-mono text-xs ml-1">// NYX AGENT</span>
                   </h2>
                   <span className="flex h-2 w-2 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
