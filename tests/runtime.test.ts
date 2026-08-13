@@ -171,10 +171,12 @@ async function runTests() {
   if (savedSmtp) process.env.SMTP_HOST = savedSmtp;
   console.log('[Test 11] Email transport fails closed when no provider is configured.');
 
+  await nyxRuntime.shutdown();
   console.log('ALL NYX AGENT RUNTIME TESTS PASSED SUCCESSFULLY!');
 }
 
-runTests().catch((err) => {
+runTests().catch(async (err) => {
   console.error('Test Suite Failed:', err);
+  await nyxRuntime.shutdown().catch(() => undefined);
   process.exit(1);
 });
