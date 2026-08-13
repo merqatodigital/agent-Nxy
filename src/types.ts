@@ -2,7 +2,7 @@
  * Types for Autonomous B2B SDR Agent Application
  */
 
-export type ToolType = 'CRM_LOOKUP' | 'WEB_SCRAPE' | 'DRAFT_EMAIL';
+export type ToolType = 'CRM_LOOKUP' | 'WEB_SCRAPE' | 'DRAFT_EMAIL' | 'GOOGLE_BUSINESS_LOOKUP';
 
 export interface AgentThoughtAction {
   thought: string;
@@ -39,6 +39,19 @@ export interface ExecutionStep {
 
 export type LeadStatus = 'New' | 'Enriching' | 'Enriched' | 'Draft Ready' | 'Sent' | 'Replied' | 'Converted';
 
+export interface GoogleBusinessInfo {
+  placeName?: string;
+  rating?: number;
+  reviewCount?: number;
+  phone?: string;
+  address?: string;
+  googleCategory?: string;
+  businessHours?: string;
+  googleBusinessUrl?: string;
+  googleMapsUrl?: string;
+  placeId?: string;
+}
+
 export interface ProspectLead {
   id: string;
   companyName: string;
@@ -52,6 +65,8 @@ export interface ProspectLead {
   status: LeadStatus;
   createdAt: string;
   notes?: string;
+  googleBusinessUrl?: string;
+  googleBusinessData?: GoogleBusinessInfo;
   scrapedData?: ScrapedWebsiteData;
   crmHistory?: CRMRecord;
   draftedEmail?: OutboundDraft;

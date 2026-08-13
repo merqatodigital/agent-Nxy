@@ -54,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white uppercase terminal-font flex items-center gap-1">
+              <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white uppercase font-futura flex items-center gap-1">
                 <span>merqato</span>
                 <span className="text-[#B90000]">.digital</span>
                 <span className="text-gray-500 font-normal text-xs font-mono ml-1">// SDR AGENT</span>

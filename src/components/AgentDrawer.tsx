@@ -70,7 +70,7 @@ export const AgentDrawer: React.FC<AgentDrawerProps> = ({
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h2 className="text-sm font-extrabold text-white uppercase terminal-font flex items-center gap-1">
+                  <h2 className="text-sm font-extrabold text-white uppercase font-futura flex items-center gap-1">
                     <span>merqato</span>
                     <span className="text-[#B90000]">.digital</span>
                     <span className="text-emerald-400 font-bold ml-1">// NYX AGENT</span>

@@ -38,7 +38,7 @@ export const PasskeyModal: React.FC<PasskeyModalProps> = ({ isOpen, onAuthentica
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-500 mb-2 glow-emerald">
               <Lock className="w-7 h-7 text-red-500" />
             </div>
-            <h2 className="text-xl font-extrabold text-white uppercase terminal-font tracking-tight">
+            <h2 className="text-xl font-extrabold text-white uppercase font-futura tracking-tight">
               merqato<span className="text-[#B90000]">.digital</span>
             </h2>
             <p className="text-xs text-gray-400 font-mono">

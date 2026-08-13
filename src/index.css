@@ -4,6 +4,11 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+.font-futura, .futura-font, .brand-futura {
+  font-family: 'Futura', 'Futura PT', 'Futura Bold', 'Jost', 'Century Gothic', system-ui, -apple-system, sans-serif !important;
+  letter-spacing: -0.02em;
+}
+
 :root {
   --bg-primary: #050505;
   --bg-card: #0a0a0a;

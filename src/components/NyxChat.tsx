@@ -246,13 +246,14 @@ export const NyxChat: React.FC<NyxChatProps> = ({
     {
       id: 'msg-1',
       sender: 'nyx',
-      text: `Executive Summary\nNyx Autonomous AI SDR Agent is initialized and online. Pipeline vectors, CRM deal accounts, and ICP parameters are active.\n\nCapabilities Available\n• Prospect Lead Intelligence: Autonomous domain scraping and lead vector enrichment.\n• Cold Email Copy Synthesis: Personalized B2B email generation matching ICP parameters.\n• CRM Account Audit: Revenue LTV cross-referencing and deal sentiment analysis.\n\nStrategic Action Plan\nSelect a direct action below or prompt a pipeline directive to execute agentic workflows.`,
+      text: `Executive Summary\nNyx Autonomous AI SDR Agent is initialized and active.\n\nProactive Directive Question\nWhat target businesses or market verticals are we focusing on today?\n\nCapabilities Available\n• Bulk Contact Ingestion: Download CSV templates & bulk upload contact lists.\n• Google Business Extraction: Instant lead enrichment from Google Maps / GMB Profile URLs.\n• Cold Email Copy Synthesis: Personalized B2B email generation matching ICP parameters.\n\nStrategic Action Plan\nSelect a focus vertical below or enter a custom target business directive to initiate automated SDR loops.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       suggestedActions: [
-        { label: 'Pipeline Summary', action: 'Summarize active prospect leads and pipeline status' },
-        { label: 'Draft Cold Email', action: 'Write a personalized cold email for our top prospect lead' },
-        { label: 'CRM LTV Audit', action: 'Audit CRM deal histories and client account sentiment' },
-        { label: 'ICP Optimization', action: 'Optimize our ICP value proposition for higher reply conversion' }
+        { label: '⚡ Focus: B2B SaaS & Tech', action: 'Focus SDR outreach loops on B2B SaaS & Technology accounts' },
+        { label: '🔥 Focus: Healthcare & Dental', action: 'Focus SDR outreach loops on Healthcare & Dental practices' },
+        { label: '📦 Focus: Freight & Logistics', action: 'Focus SDR outreach loops on Freight & Logistics companies' },
+        { label: '🏢 Focus: Real Estate', action: 'Focus SDR outreach loops on Commercial Real Estate firms' },
+        { label: '📄 Draft Cold Email', action: 'Write a personalized cold email for our top prospect lead' }
       ]
     }
   ]);
