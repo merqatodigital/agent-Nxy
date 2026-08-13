@@ -1,52 +1,64 @@
 import { toolRegistry } from '../agent/toolRegistry.js';
-import { evaluateCrmOutreachPolicy } from './policy.js';
+import { evaluateOutreachPolicy } from './policy.js';
 import { scoreProspect } from './scoring.js';
 import { extractPublicContacts } from './enrichment/publicContacts.js';
+import { fetchPublicBusinessPage } from './research/safeFetch.js';
 
-/**
- * Registers deterministic sales helpers with the core Nyx tool registry when the
- * runtime exposes registerTool(). Kept isolated so Gemini-owned runtime files do
- * not need to import sales internals directly.
- */
 export function registerSalesRuntimeTools(): void {
-  const registry: any = toolRegistry as any;
-  if (typeof registry.registerTool !== 'function') return;
+  // Replace Gemini's mock/fabricated WEB_SCRAPE implementation with a real public-web fetcher.
+  toolRegistry.registerTool({
+    name: 'WEB_SCRAPE',
+    description: 'Fetch and extract real public business website content. Never fabricates unknown-site data.',
+    approvalPolicy: 'AUTO_APPROVED',
+    timeoutMs: 15000,
+    retryBehavior: { maxAttempts: 2, backoffMs: 1500 },
+    validateInput: (args: any) => {
+      if (!args || typeof args !== 'object' || !args.url) {
+        return { valid: false, error: 'url argument is required' };
+      }
+      return { valid: true };
+    },
+    execute: async (args: any) => fetchPublicBusinessPage(String(args.url))
+  });
 
-  const existing = (name: string) => Boolean(registry.getTool?.(name));
+  toolRegistry.registerTool({
+    name: 'CRM_OUTREACH_POLICY',
+    description: 'Determine whether cold outreach is allowed for a CRM relationship status.',
+    approvalPolicy: 'AUTO_APPROVED',
+    timeoutMs: 2000,
+    retryBehavior: { maxAttempts: 1, backoffMs: 0 },
+    validateInput: (args: any) => {
+      if (!args?.crmStatus) return { valid: false, error: 'crmStatus is required' };
+      return { valid: true };
+    },
+    execute: async (args: any) => evaluateOutreachPolicy(args.crmStatus)
+  });
 
-  if (!existing('CRM_OUTREACH_POLICY')) {
-    registry.registerTool({
-      name: 'CRM_OUTREACH_POLICY',
-      description: 'Determine whether cold outreach is allowed for a CRM status.',
-      approvalPolicy: 'AUTO_APPROVED',
-      timeoutMs: 2000,
-      maxRetries: 0,
-      validate: (input: any) => Boolean(input?.crmStatus),
-      execute: async (input: any) => evaluateCrmOutreachPolicy(input.crmStatus)
-    });
-  }
+  toolRegistry.registerTool({
+    name: 'SCORE_PROSPECT',
+    description: 'Score a prospect against explicit ICP and collected evidence.',
+    approvalPolicy: 'AUTO_APPROVED',
+    timeoutMs: 2000,
+    retryBehavior: { maxAttempts: 1, backoffMs: 0 },
+    validateInput: (args: any) => {
+      if (!args || !Array.isArray(args.targetIndustries) || !Array.isArray(args.targetLocations)) {
+        return { valid: false, error: 'targetIndustries and targetLocations arrays are required' };
+      }
+      return { valid: true };
+    },
+    execute: async (args: any) => scoreProspect(args)
+  });
 
-  if (!existing('SCORE_PROSPECT')) {
-    registry.registerTool({
-      name: 'SCORE_PROSPECT',
-      description: 'Score a prospect against explicit ICP evidence.',
-      approvalPolicy: 'AUTO_APPROVED',
-      timeoutMs: 2000,
-      maxRetries: 0,
-      validate: (input: any) => Boolean(input && Array.isArray(input.targetIndustries) && Array.isArray(input.targetLocations)),
-      execute: async (input: any) => scoreProspect(input)
-    });
-  }
-
-  if (!existing('EXTRACT_PUBLIC_CONTACTS')) {
-    registry.registerTool({
-      name: 'EXTRACT_PUBLIC_CONTACTS',
-      description: 'Extract public business contact details from fetched page content without guessing addresses.',
-      approvalPolicy: 'AUTO_APPROVED',
-      timeoutMs: 2000,
-      maxRetries: 0,
-      validate: (input: any) => Boolean(input?.sourceUrl),
-      execute: async (input: any) => extractPublicContacts(input)
-    });
-  }
+  toolRegistry.registerTool({
+    name: 'EXTRACT_PUBLIC_CONTACTS',
+    description: 'Extract public business contact details from fetched content without guessing email addresses.',
+    approvalPolicy: 'AUTO_APPROVED',
+    timeoutMs: 2000,
+    retryBehavior: { maxAttempts: 1, backoffMs: 0 },
+    validateInput: (args: any) => {
+      if (!args?.sourceUrl) return { valid: false, error: 'sourceUrl is required' };
+      return { valid: true };
+    },
+    execute: async (args: any) => extractPublicContacts(args)
+  });
 }
