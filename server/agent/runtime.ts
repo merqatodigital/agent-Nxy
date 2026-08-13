@@ -43,8 +43,16 @@ class NyxAgentRuntime {
     if (this.isInitialized) return;
     await initStore();
     await this.scheduler.start(2000);
+    this.startTime = Date.now();
     this.isInitialized = true;
     console.log('[Nyx Runtime] Core Agent Runtime Initialized Successfully');
+  }
+
+  public async shutdown(): Promise<void> {
+    if (!this.isInitialized) return;
+    this.scheduler.stop();
+    this.isInitialized = false;
+    console.log('[Nyx Runtime] Core Agent Runtime Stopped');
   }
 
   public async createObjective(params: {
