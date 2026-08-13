@@ -1,0 +1,6 @@
+{
+  "name": "Autonomous B2B SDR Agent",
+  "description": "Autonomous B2B GTM and SDR SDR Agent engine powered by open-source models & OpenRouter, featuring LangGraph execution loops, CRM lookup, web scraping, and automated sales outreach drafting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
