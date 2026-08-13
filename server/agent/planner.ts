@@ -1,5 +1,9 @@
 import { AgentObjective, AgentTask } from './types.js';
 import { saveTask } from './store.js';
+import { registerSalesRuntimeTools } from '../sales/runtimeTools.js';
+
+// Register deterministic sales tools once when the planner/runtime module loads.
+registerSalesRuntimeTools();
 
 export class AgentPlanner {
   /**
@@ -25,8 +29,9 @@ export class AgentPlanner {
         maxAttempts: 3,
         scheduledAt: new Date().toISOString(),
         arguments: {
-          objective: objective.instruction,
-          maximumResults: 25
+          keywords: [objective.instruction],
+          maximumResults: 25,
+          excludeDomains: []
         }
       };
       await saveTask(discoveryTask);
