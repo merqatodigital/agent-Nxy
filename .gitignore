@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+.nyx/
+nyx_agent.sqlite
+nyx_agent.sqlite-*
