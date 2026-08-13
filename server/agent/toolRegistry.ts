@@ -1,5 +1,5 @@
-import { RegisteredTool, ToolContext, ToolValidationResult, ApprovalPolicy } from './types.js';
-import { MOCK_SCRAPED_SITES } from '../../src/data/mockData.js';
+import { RegisteredTool, ToolContext, ToolValidationResult } from './types.js';
+import { getEmailProviderStatus, sendOutboundEmail } from '../worker/smtpProvider.js';
 
 class ToolRegistry {
   private tools: Map<string, RegisteredTool> = new Map();
@@ -21,149 +21,86 @@ class ToolRegistry {
   }
 
   private registerDefaultTools() {
-    // 1. CRM_LOOKUP
     this.registerTool({
       name: 'CRM_LOOKUP',
-      description: 'Query internal CRM database for account deal history, LTV, and sentiment.',
+      description: 'Query internal CRM database for account history and relationship status.',
       approvalPolicy: 'AUTO_APPROVED',
       timeoutMs: 10000,
       retryBehavior: { maxAttempts: 3, backoffMs: 1000 },
       validateInput: (args: any): ToolValidationResult => {
-        if (!args || typeof args !== 'object') {
-          return { valid: false, error: 'Arguments object is required' };
-        }
-        if (!args.company_name && !args.companyName && !args.domain) {
-          return { valid: false, error: 'company_name or domain argument is required' };
-        }
+        if (!args || typeof args !== 'object') return { valid: false, error: 'Arguments object is required' };
+        if (!args.company_name && !args.companyName && !args.domain) return { valid: false, error: 'company_name or domain is required' };
         return { valid: true };
       },
       execute: async (args: any, context: ToolContext) => {
-        const query = String(args.company_name || args.companyName || args.domain || '').toLowerCase().trim();
+        const companyQuery = String(args.company_name || args.companyName || '').toLowerCase().trim();
+        const domainQuery = String(args.domain || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
         const records = context.crmRecords || [];
-        const record = records.find(
-          (c: any) =>
-            c.companyName?.toLowerCase().includes(query) ||
-            c.domain?.toLowerCase().includes(query)
-        );
+        const record = records.find((c: any) => {
+          const company = String(c.companyName || '').toLowerCase();
+          const domain = String(c.domain || '').toLowerCase().replace(/^www\./, '');
+          return (companyQuery && company.includes(companyQuery)) || (domainQuery && domain === domainQuery);
+        });
 
-        if (record) {
-          return {
-            found: true,
-            company_name: record.companyName,
-            domain: record.domain,
-            lifecycle_stage: record.lifecycleStage,
-            past_deals: record.pastDeals,
-            total_spend: record.totalSpend,
-            last_contact: record.lastContactDate || 'Never',
-            sentiment: record.sentiment,
-            notes: record.keyNotes,
-            account_owner: record.accountOwner
-          };
+        if (!record) {
+          return { found: false, company_name: args.company_name || args.companyName, domain: args.domain, relationship: 'new_prospect' };
         }
+
         return {
-          found: false,
-          company_name: query,
-          message: 'No prior deals found in CRM. Account is a fresh target prospect.'
+          found: true,
+          company_name: record.companyName,
+          domain: record.domain,
+          lifecycle_stage: record.lifecycleStage,
+          past_deals: record.pastDeals,
+          total_spend: record.totalSpend,
+          last_contact: record.lastContactDate || 'Never',
+          sentiment: record.sentiment,
+          notes: record.keyNotes,
+          account_owner: record.accountOwner
         };
       }
     });
 
-    // 2. WEB_SCRAPE
+    // These two defaults intentionally fail closed. server/sales/runtimeTools.ts
+    // replaces them with real public-web implementations during runtime startup.
     this.registerTool({
       name: 'WEB_SCRAPE',
-      description: 'Extract business vectors, tech stack, and pain points from target domain.',
+      description: 'Fetch real public website evidence through the registered sales research provider.',
       approvalPolicy: 'AUTO_APPROVED',
       timeoutMs: 15000,
-      retryBehavior: { maxAttempts: 3, backoffMs: 2000 },
-      validateInput: (args: any): ToolValidationResult => {
-        if (!args || !args.url) {
-          return { valid: false, error: 'url argument is required' };
-        }
-        return { valid: true };
-      },
-      execute: async (args: any) => {
-        const urlStr = String(args.url);
-        const cleanDomain = urlStr
-          .replace(/^https?:\/\//i, '')
-          .replace(/^www\./i, '')
-          .split('/')[0]
-          .toLowerCase();
-
-        if (MOCK_SCRAPED_SITES[cleanDomain]) {
-          return {
-            url: `https://${cleanDomain}`,
-            status: 'success',
-            scrape_result: MOCK_SCRAPED_SITES[cleanDomain]
-          };
-        }
-
-        return {
-          url: urlStr.startsWith('http') ? urlStr : `https://${urlStr}`,
-          status: 'success',
-          scrape_result: {
-            url: urlStr,
-            title: `${cleanDomain} | Official Business Domain`,
-            description: `B2B technology solutions and professional operations at ${cleanDomain}.`,
-            coreBusinessVectors: [
-              'B2B Operations & Enterprise Software',
-              'Digital Workflow Automation',
-              'Client Retention & Growth'
-            ],
-            techStack: ['React', 'Cloud Infra', 'Analytics', 'SaaS Platform'],
-            valueProps: [
-              `Delivering scalable workflow solutions for ${cleanDomain} enterprise clients`,
-              'Modern digital transformation and efficiency'
-            ],
-            recentHighlights: [
-              'Expanding sales and operations team in 2026',
-              'Accelerating outbound prospect conversion'
-            ],
-            targetAudience: 'Executive Decision Makers and Sales Operations Leaders',
-            detectedPainPoints: [
-              'Manual prospect qualification slowing pipeline velocity',
-              'Desire to automate personalized cold outreach'
-            ]
-          }
-        };
-      }
+      retryBehavior: { maxAttempts: 2, backoffMs: 1500 },
+      validateInput: (args: any) => args?.url ? { valid: true } : { valid: false, error: 'url is required' },
+      execute: async () => { throw new Error('sales_research_runtime_not_registered'); }
     });
 
-    // 3. DRAFT_EMAIL
     this.registerTool({
       name: 'DRAFT_EMAIL',
-      description: 'Synthesize personalized cold outreach copy and queue into outbox.',
-      approvalPolicy: 'REQUIRES_APPROVAL', // Email drafting/dispatching requires human approval by default
+      description: 'Create a personalized email draft from supplied, sourced prospect data. Drafting does not send email.',
+      approvalPolicy: 'AUTO_APPROVED',
       timeoutMs: 10000,
       retryBehavior: { maxAttempts: 2, backoffMs: 1000 },
       validateInput: (args: any): ToolValidationResult => {
-        if (!args || typeof args !== 'object') {
-          return { valid: false, error: 'Arguments object is required' };
-        }
-        if (!args.recipient_email && !args.recipientEmail) {
-          return { valid: false, error: 'recipient_email is required' };
-        }
-        if (!args.email_subject && !args.subject) {
-          return { valid: false, error: 'email_subject is required' };
-        }
-        if (!args.email_body && !args.body) {
-          return { valid: false, error: 'email_body is required' };
-        }
+        if (!args || typeof args !== 'object') return { valid: false, error: 'Arguments object is required' };
+        if (!args.recipient_email && !args.recipientEmail) return { valid: false, error: 'recipient_email is required' };
+        if (!args.email_subject && !args.subject) return { valid: false, error: 'email_subject is required' };
+        if (!args.email_body && !args.body) return { valid: false, error: 'email_body is required' };
         return { valid: true };
       },
       execute: async (args: any, context: ToolContext) => {
-        const recipientEmail = args.recipient_email || args.recipientEmail;
-        const subject = args.email_subject || args.subject;
-        const body = args.email_body || args.body;
-        const companyName = args.company_name || args.companyName || recipientEmail.split('@')[1] || 'Target Company';
-        const hookUsed = args.hook_used || args.hookUsed || 'Personalized Value Proposition';
+        const recipientEmail = String(args.recipient_email || args.recipientEmail).trim().toLowerCase();
+        const subject = String(args.email_subject || args.subject).trim();
+        const body = String(args.email_body || args.body);
+        const companyName = String(args.company_name || args.companyName || '').trim();
+        const recipientName = String(args.recipient_name || args.recipientName || '').trim();
+        const hookUsed = String(args.hook_used || args.hookUsed || 'Sourced public business evidence').trim();
 
         const draftId = `draft-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         const draftObj = {
           id: draftId,
-          prospectId: context.prospectId || `lead-${Date.now()}`,
+          prospectId: context.prospectId || args.prospect_id || '',
           companyName,
           recipientEmail,
-          recipientName: recipientEmail.split('@')[0].replace('.', ' ') || 'Prospect Lead',
+          recipientName,
           subject,
           body,
           hookUsed,
@@ -172,194 +109,138 @@ class ToolRegistry {
           tone: 'Value-First'
         };
 
-        if (context.outboundDrafts) {
-          context.outboundDrafts.unshift(draftObj);
-        }
-
-        return {
-          status: 'draft_saved',
-          draft_id: draftId,
-          recipient_email: recipientEmail,
-          email_subject: subject,
-          message: `Personalized cold outreach draft for ${companyName} queued into outbox.`
-        };
+        if (context.outboundDrafts) context.outboundDrafts.unshift(draftObj);
+        return { status: 'draft_saved', draft_id: draftId, recipient_email: recipientEmail, email_subject: subject };
       }
     });
 
-    // 4. GOOGLE_BUSINESS_LOOKUP
     this.registerTool({
       name: 'GOOGLE_BUSINESS_LOOKUP',
-      description: 'Extract business information, reviews, categories, and contact details from Google Business / Google Maps URLs.',
+      description: 'Research a supplied Google Business/Maps URL using the registered sales research provider.',
       approvalPolicy: 'AUTO_APPROVED',
-      timeoutMs: 12000,
-      retryBehavior: { maxAttempts: 3, backoffMs: 1000 },
-      validateInput: (args: any): ToolValidationResult => {
-        if (!args || (!args.url && !args.google_business_url && !args.query)) {
-          return { valid: false, error: 'url, google_business_url, or query is required' };
-        }
-        return { valid: true };
-      },
-      execute: async (args: any) => {
-        const urlInput = args.url || args.google_business_url || args.query || '';
-        let extractedName = 'Target Business';
-        
-        if (urlInput.includes('/maps/place/')) {
-          const m = urlInput.match(/\/maps\/place\/([^/@?]+)/i);
-          if (m && m[1]) extractedName = decodeURIComponent(m[1].replace(/\+/g, ' '));
-        } else if (urlInput.includes('q=')) {
-          const m = urlInput.match(/[?&]q=([^&]+)/i);
-          if (m && m[1]) extractedName = decodeURIComponent(m[1].replace(/\+/g, ' '));
-        } else {
-          extractedName = urlInput.replace(/^https?:\/\//i, '').replace(/[^a-zA-Z0-9\s]/g, ' ').trim() || 'Target Business';
-        }
-
-        extractedName = extractedName.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-        const slug = extractedName.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-        return {
-          status: 'success',
-          google_business_url: urlInput.startsWith('http') ? urlInput : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(extractedName)}`,
-          business_name: extractedName,
-          company_name: extractedName,
-          website: `${slug}.com`,
-          contact_email: `contact@${slug}.com`,
-          contact_name: 'Managing Director / Business Owner',
-          industry: 'B2B Professional Services',
-          rating: 4.8,
-          review_count: 128,
-          phone: '+1 (555) 438-2910',
-          location: 'United States',
-          google_category: 'Verified Google Business Listing',
-          extracted_highlights: [
-            `Verified Google Business Profile for ${extractedName}`,
-            `4.8 Star Rating based on 128 verified Google reviews`,
-            `Active customer operations and contact details verified`
-          ]
-        };
-      }
+      timeoutMs: 20000,
+      retryBehavior: { maxAttempts: 2, backoffMs: 1500 },
+      validateInput: (args: any) => (args?.url || args?.google_business_url || args?.query)
+        ? { valid: true }
+        : { valid: false, error: 'url, google_business_url, or query is required' },
+      execute: async () => { throw new Error('sales_google_business_runtime_not_registered'); }
     });
 
-    // 5. SEND_EMAIL
     this.registerTool({
       name: 'SEND_EMAIL',
-      description: 'Dispatch queued cold outreach email or reply to prospect.',
+      description: 'Deliver an approved outbound email through configured Resend or SMTP transport.',
       approvalPolicy: 'REQUIRES_APPROVAL',
-      timeoutMs: 15000,
-      retryBehavior: { maxAttempts: 2, backoffMs: 2000 },
+      timeoutMs: 20000,
+      retryBehavior: { maxAttempts: 2, backoffMs: 3000 },
       validateInput: (args: any): ToolValidationResult => {
-        if (!args || typeof args !== 'object') {
-          return { valid: false, error: 'Arguments object is required' };
-        }
-        if (!args.recipient_email && !args.recipientEmail && !args.draft_id && !args.draftId) {
-          return { valid: false, error: 'recipient_email or draft_id is required' };
+        if (!args || typeof args !== 'object') return { valid: false, error: 'Arguments object is required' };
+        if (!args.draft_id && !args.draftId && !args.recipient_email && !args.recipientEmail) {
+          return { valid: false, error: 'draft_id or recipient_email is required' };
         }
         return { valid: true };
       },
       execute: async (args: any, context: ToolContext) => {
-        const draftId = args.draft_id || args.draftId;
-        const recipientEmail = args.recipient_email || args.recipientEmail || 'prospect@target.com';
-        const subject = args.email_subject || args.subject || 'Follow up';
-        const body = args.email_body || args.body || '';
+        const draftId = String(args.draft_id || args.draftId || '').trim();
+        const draft = draftId && context.outboundDrafts
+          ? context.outboundDrafts.find((d: any) => d.id === draftId)
+          : undefined;
 
-        const msgId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        const dispatchTimestamp = new Date().toISOString();
+        const recipientEmail = String(args.recipient_email || args.recipientEmail || draft?.recipientEmail || '').trim();
+        const subject = String(args.email_subject || args.subject || draft?.subject || '').trim();
+        const body = String(args.email_body || args.body || draft?.body || '');
+        if (!recipientEmail || !subject || !body) throw new Error('email_payload_incomplete');
 
-        if (draftId && context.outboundDrafts) {
-          const draft = context.outboundDrafts.find((d: any) => d.id === draftId);
-          if (draft) {
-            draft.status = 'Sent';
-            draft.sentAt = dispatchTimestamp;
-            draft.messageId = msgId;
-          }
+        const providerStatus = getEmailProviderStatus();
+        if (!providerStatus.configured) throw new Error('email_provider_not_configured');
+
+        const delivery = await sendOutboundEmail({
+          to: recipientEmail,
+          subject,
+          body,
+          from: args.from,
+          replyTo: args.reply_to || args.replyTo,
+          draftId: draftId || undefined
+        });
+
+        // Mutate CRM/outbox only after the provider confirms delivery acceptance.
+        if (draft) {
+          draft.status = 'Sent';
+          draft.sentAt = delivery.deliveredAt;
+          draft.messageId = delivery.messageId;
         }
 
         if (context.prospectLeads) {
-          const matchingLead = context.prospectLeads.find((l: any) => l.contactEmail?.toLowerCase() === recipientEmail.toLowerCase());
+          const matchingLead = context.prospectLeads.find((l: any) =>
+            String(l.contactEmail || '').toLowerCase() === recipientEmail.toLowerCase()
+          );
           if (matchingLead) {
             matchingLead.status = 'Sent';
-            matchingLead.lastContactDate = dispatchTimestamp.split('T')[0];
+            matchingLead.lastContactDate = delivery.deliveredAt.split('T')[0];
           }
         }
 
         return {
           status: 'sent',
-          message_id: msgId,
-          recipient_email: recipientEmail,
-          subject: subject,
-          sent_at: dispatchTimestamp,
-          delivery_mode: process.env.RESEND_API_KEY ? 'Resend API' : (process.env.SMTP_HOST ? 'SMTP Gateway' : 'Verified Outbound Dispatch Engine'),
-          message: `Outreach email successfully sent to ${recipientEmail} with Message-ID: <${msgId}@merqato.digital>.`
+          provider: delivery.provider,
+          message_id: delivery.messageId,
+          recipient_email: delivery.recipient,
+          sent_at: delivery.deliveredAt
         };
       }
     });
 
-    // 6. CONVERT_ORDER
     this.registerTool({
       name: 'CONVERT_ORDER',
-      description: 'Convert an interested prospect or closed-won lead into an active customer order and record deal revenue.',
-      approvalPolicy: 'AUTO_APPROVED',
+      description: 'Record an operator-approved closed-won order in CRM.',
+      approvalPolicy: 'REQUIRES_APPROVAL',
       timeoutMs: 10000,
-      retryBehavior: { maxAttempts: 3, backoffMs: 1000 },
+      retryBehavior: { maxAttempts: 1, backoffMs: 0 },
       validateInput: (args: any): ToolValidationResult => {
-        if (!args || typeof args !== 'object') {
-          return { valid: false, error: 'Arguments object is required' };
-        }
-        if (!args.company_name && !args.companyName) {
-          return { valid: false, error: 'company_name is required' };
-        }
+        const companyName = args?.company_name || args?.companyName;
+        const amount = Number(args?.amount ?? args?.order_value);
+        if (!companyName) return { valid: false, error: 'company_name is required' };
+        if (!Number.isFinite(amount) || amount <= 0) return { valid: false, error: 'positive amount is required' };
         return { valid: true };
       },
       execute: async (args: any, context: ToolContext) => {
-        const companyName = args.company_name || args.companyName;
-        const amount = Number(args.amount || args.order_value || 2500);
-        const lineItem = args.line_item || args.description || 'B2B SDR Automation Package';
+        const companyName = String(args.company_name || args.companyName).trim();
+        const amount = Number(args.amount ?? args.order_value);
+        const lineItem = String(args.line_item || args.description || 'Closed-won order').trim();
         const orderId = `ord-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+        const now = new Date().toISOString();
 
-        if (context.prospectLeads) {
-          const lead = context.prospectLeads.find((l: any) => l.companyName?.toLowerCase().includes(companyName.toLowerCase()));
-          if (lead) {
-            lead.status = 'Converted';
-          }
-        }
+        const lead = context.prospectLeads?.find((l: any) => String(l.companyName || '').toLowerCase() === companyName.toLowerCase());
+        if (lead) lead.status = 'Converted';
 
         if (context.crmRecords) {
-          let crmRecord = context.crmRecords.find((c: any) => c.companyName?.toLowerCase().includes(companyName.toLowerCase()));
+          let crmRecord = context.crmRecords.find((c: any) => String(c.companyName || '').toLowerCase() === companyName.toLowerCase());
           if (crmRecord) {
             crmRecord.lifecycleStage = 'Customer';
-            crmRecord.totalSpend += amount;
-            crmRecord.pastDeals += 1;
-            crmRecord.lastContactDate = new Date().toISOString().split('T')[0];
+            crmRecord.totalSpend = Number(crmRecord.totalSpend || 0) + amount;
+            crmRecord.pastDeals = Number(crmRecord.pastDeals || 0) + 1;
+            crmRecord.lastContactDate = now.split('T')[0];
             crmRecord.sentiment = 'Positive';
           } else {
             crmRecord = {
               id: `crm-${Date.now()}`,
-              companyName: companyName,
-              domain: `${companyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+              companyName,
+              domain: String(args.domain || '').trim(),
               lifecycleStage: 'Customer',
               pastDeals: 1,
               totalSpend: amount,
-              lastContactDate: new Date().toISOString().split('T')[0],
+              lastContactDate: now.split('T')[0],
               sentiment: 'Positive',
-              keyNotes: `Converted order: ${lineItem} ($${amount.toLocaleString()}) via Nyx Agent.`,
-              accountOwner: 'Nyx AI SDR Engine'
+              keyNotes: `Converted order: ${lineItem}`,
+              accountOwner: 'Nyx SDR Agent'
             };
             context.crmRecords.unshift(crmRecord);
           }
         }
 
-        return {
-          status: 'converted',
-          order_id: orderId,
-          company_name: companyName,
-          order_value: `$${amount.toLocaleString()}`,
-          line_item: lineItem,
-          crm_status: 'Customer / Closed-Won',
-          message: `Order ${orderId} logged successfully. Account '${companyName}' moved to Customer stage with $${amount.toLocaleString()} revenue.`
-        };
+        return { status: 'converted', order_id: orderId, company_name: companyName, order_value: amount, line_item: lineItem };
       }
     });
   }
 }
-
 
 export const toolRegistry = new ToolRegistry();
