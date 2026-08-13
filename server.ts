@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { INITIAL_CRM_RECORDS, INITIAL_PROSPECTS, DEFAULT_ICP_CONFIG, MOCK_SCRAPED_SITES, DEFAULT_OPENROUTER_MODELS } from './src/data/mockData.js';
 import { ProspectLead, CRMRecord, OutboundDraft, ICPConfig, ScrapedWebsiteData, AgentStepResponse } from './src/types.js';
+import { nyxRuntime } from './server/agent/runtime.js';
 
 dotenv.config();
 
@@ -15,9 +16,20 @@ let prospectLeads: ProspectLead[] = [...INITIAL_PROSPECTS];
 let outboundDrafts: OutboundDraft[] = [];
 let icpConfig: ICPConfig = { ...DEFAULT_ICP_CONFIG };
 
+// Connect runtime context
+nyxRuntime.setContextProvider(() => ({
+  crmRecords,
+  prospectLeads,
+  icpConfig,
+  outboundDrafts
+}));
+
 async function startServer() {
   const app = express();
   app.use(express.json());
+
+  // Initialize Core Agent Runtime and SQLite store
+  await nyxRuntime.init();
 
   // --- API ROUTES ---
 
@@ -92,7 +104,93 @@ CRITICAL FORMATTING & EXECUTABILITY GUIDELINES FOR NYX:
       }
     }
 
-    // 2. Autonomous Dynamic Agent Execution (Triggers real tool runs internally)
+    // 2. Real Autonomous Agent Runtime Interactions
+    if (q.includes('create objective') || q.includes('start objective') || q.includes('new objective')) {
+      const title = userQuery.replace(/create objective|start objective|new objective/gi, '').trim() || 'Outbound Prospecting Loop';
+      const { objective, tasks } = await nyxRuntime.createObjective({
+        title: title,
+        instruction: userQuery,
+        priority: 'high',
+        prospects: prospectLeads
+      });
+      return res.json({
+        reply: `Executive Summary\nCreated new persistent objective '${objective.title}' (ID: ${objective.id}).\n\nStrategic Action Plan\nQueued ${tasks.length} operational tasks (CRM Lookup, Web Scrape, Draft Email) in the persistent SQLite queue. The background scheduler will advance them automatically.`,
+        provider: 'Nyx Agentic Runtime',
+        status: 'success',
+        objective
+      });
+    }
+
+    if (q.includes('pause objective') || (q.includes('pause') && q.includes('obj-'))) {
+      const match = q.match(/obj-[a-z0-9-]+/i);
+      const activeObjectives = await nyxRuntime.getObjectives('active');
+      const targetId = match ? match[0] : activeObjectives[0]?.id;
+
+      if (targetId) {
+        const paused = await nyxRuntime.pauseObjective(targetId);
+        return res.json({
+          reply: `Executive Summary\nPaused active objective '${paused?.title}' (ID: ${targetId}).\n\nStrategic Action Plan\nBackground scheduler has suspended task execution for this objective until resumed.`,
+          provider: 'Nyx Agentic Runtime',
+          status: 'success'
+        });
+      }
+      return res.json({
+        reply: `Executive Summary\nNo active objectives found to pause.`,
+        provider: 'Nyx Agentic Runtime',
+        status: 'success'
+      });
+    }
+
+    if (q.includes('resume objective') || (q.includes('resume') && q.includes('obj-'))) {
+      const match = q.match(/obj-[a-z0-9-]+/i);
+      const pausedObjectives = await nyxRuntime.getObjectives('paused');
+      const targetId = match ? match[0] : pausedObjectives[0]?.id;
+
+      if (targetId) {
+        const resumed = await nyxRuntime.resumeObjective(targetId);
+        return res.json({
+          reply: `Executive Summary\nResumed objective '${resumed?.title}' (ID: ${targetId}).\n\nStrategic Action Plan\nBackground scheduler will resume task processing on the next tick.`,
+          provider: 'Nyx Agentic Runtime',
+          status: 'success'
+        });
+      }
+      return res.json({
+        reply: `Executive Summary\nNo paused objectives found to resume.`,
+        provider: 'Nyx Agentic Runtime',
+        status: 'success'
+      });
+    }
+
+    if (q.includes('doing') || q.includes('status') || q.includes('progress') || q.includes('runtime')) {
+      const status = await nyxRuntime.getRuntimeStatus();
+      const recentEvents = await nyxRuntime.getActivityEvents(5);
+      const eventSummary = recentEvents.map(e => `• [${e.type}] ${e.message}`).join('\n');
+
+      return res.json({
+        reply: `Executive Summary\nNyx Agent Runtime is ${status.status.toUpperCase()} (Uptime: ${status.uptimeSeconds}s).\nActive Objectives: ${status.activeObjectivesCount} | Queued Tasks: ${status.queuedTasksCount} | Running Tasks: ${status.runningTasksCount} | Pending Approvals: ${status.pendingApprovalsCount}\n\nRecent Operational Activity\n${eventSummary || '• Monitoring active system queues.'}\n\nStrategic Action Plan\nThe scheduler is autonomously advancing queued tasks and checking safety policy rules.`,
+        provider: 'Nyx Agentic Runtime',
+        status: 'success'
+      });
+    }
+
+    if (q.includes('approval') || q.includes('pending') || q.includes('review')) {
+      const approvals = await nyxRuntime.getApprovals('pending');
+      if (approvals.length > 0) {
+        const itemsList = approvals.map(a => `• Approval ID: ${a.id} | Tool: ${a.toolName} | Task ID: ${a.taskId}`).join('\n');
+        return res.json({
+          reply: `Executive Summary\nThere are currently ${approvals.length} pending action items awaiting operator approval.\n\nPending Approvals\n${itemsList}\n\nStrategic Action Plan\nUse the Agent Drawer or REST API (/api/agent/approvals/:id/decide) to approve or reject these items.`,
+          provider: 'Nyx Agentic Runtime',
+          status: 'success'
+        });
+      }
+      return res.json({
+        reply: `Executive Summary\nNo items currently waiting for approval. All automated tasks have passed policy engine verification.`,
+        provider: 'Nyx Agentic Runtime',
+        status: 'success'
+      });
+    }
+
+    // 3. Autonomous Dynamic Agent Execution (Triggers real tool runs internally)
     if (q.includes('lead') || q.includes('prospect') || q.includes('pipeline') || q.includes('summary')) {
       const leadList = prospectLeads.map(l => `• ${l.companyName}: ${l.contactName} (${l.contactEmail}) | ${l.industry} | Status: ${l.status}`).join('\n');
       return res.json({
@@ -504,6 +602,115 @@ ${icpConfig.senderRole}, ${icpConfig.senderCompany}`;
       icpConfig = { ...icpConfig, ...req.body.icpConfig };
     }
     res.json({ status: 'success', icpConfig });
+  });
+
+  // --- UNIFIED NYX AGENT STATUS & MANAGEMENT APIS ---
+
+  app.get('/api/agent/status', async (req, res) => {
+    try {
+      const status = await nyxRuntime.getRuntimeStatus();
+      return res.json(status);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/agent/objectives', async (req, res) => {
+    try {
+      const statusFilter = req.query.status as any;
+      const objectives = await nyxRuntime.getObjectives(statusFilter);
+      return res.json({ objectives });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/agent/objectives', async (req, res) => {
+    try {
+      const { title, instruction, priority, approvalPolicy, constraints, prospects } = req.body;
+      if (!title || !instruction) {
+        return res.status(400).json({ error: 'title and instruction are required' });
+      }
+      const result = await nyxRuntime.createObjective({
+        title,
+        instruction,
+        priority,
+        approvalPolicy,
+        constraints,
+        prospects
+      });
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch('/api/agent/objectives/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action } = req.body;
+
+      if (action === 'pause') {
+        const obj = await nyxRuntime.pauseObjective(id);
+        return res.json({ status: 'paused', objective: obj });
+      } else if (action === 'resume') {
+        const obj = await nyxRuntime.resumeObjective(id);
+        return res.json({ status: 'resumed', objective: obj });
+      } else {
+        return res.status(400).json({ error: "Invalid action. Supported: 'pause', 'resume'" });
+      }
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/agent/tasks', async (req, res) => {
+    try {
+      const objectiveId = req.query.objectiveId as string;
+      const status = req.query.status as any;
+      const tasks = await nyxRuntime.getTasks(objectiveId, status);
+      return res.json({ tasks });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/agent/activity', async (req, res) => {
+    try {
+      const limit = Number(req.query.limit) || 50;
+      const objectiveId = req.query.objectiveId as string;
+      const events = await nyxRuntime.getActivityEvents(limit, objectiveId);
+      return res.json({ events });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/agent/approvals', async (req, res) => {
+    try {
+      const status = (req.query.status as any) || 'pending';
+      const approvals = await nyxRuntime.getApprovals(status);
+      return res.json({ approvals });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/agent/approvals/:id/decide', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { decision, decidedBy, note } = req.body;
+      if (decision !== 'approved' && decision !== 'rejected') {
+        return res.status(400).json({ error: "decision must be 'approved' or 'rejected'" });
+      }
+      const item = await nyxRuntime.decideApproval(id, decision, decidedBy, note);
+      if (!item) {
+        return res.status(404).json({ error: 'Approval item not found' });
+      }
+      return res.json({ status: 'success', approvalItem: item });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
   });
 
   // Serve Vite in dev or static files in production

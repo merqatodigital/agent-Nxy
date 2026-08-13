@@ -14,7 +14,8 @@ import {
   Sparkles,
   ExternalLink,
   Sun,
-  Moon
+  Moon,
+  ShieldCheck
 } from 'lucide-react';
 import { OpenRouterModel } from '../types';
 import { useTheme } from '../context/ThemeContext';
@@ -48,20 +49,22 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
         {/* App Branding */}
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/40 rounded-lg flex items-center justify-center glow-emerald">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="w-9 h-9 bg-red-500/10 border border-red-500/40 rounded-xl flex items-center justify-center shrink-0">
+            <Bot className="w-5 h-5 text-red-500" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h1 className="text-base sm:text-lg font-bold tracking-tight text-white uppercase terminal-font">
-                GTM-ENGINE-ALPHA // SDR AGENT
+              <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white uppercase terminal-font flex items-center gap-1">
+                <span>merqato</span>
+                <span className="text-[#B90000]">.digital</span>
+                <span className="text-gray-500 font-normal text-xs font-mono ml-1">// SDR AGENT</span>
               </h1>
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                 LangGraph Cycle
               </span>
             </div>
             <p className="text-[10px] text-emerald-500/80 font-mono uppercase tracking-[0.2em]">
-              Autonomous SDR Node // Thought-Action-Observation
+              Autonomous B2B GTM Node // Thought-Action-Observation
             </p>
           </div>
         </div>

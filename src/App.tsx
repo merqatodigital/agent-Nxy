@@ -10,12 +10,16 @@ import { LangGraphViewer } from './components/LangGraphViewer';
 import { IcpSettings } from './components/IcpSettings';
 import { NyxChat } from './components/NyxChat';
 import { AgentDrawer } from './components/AgentDrawer';
+import { PasskeyModal } from './components/PasskeyModal';
 import { Bot, MessageSquare } from 'lucide-react';
 
 import { ProspectLead, CRMRecord, OutboundDraft, ICPConfig, OpenRouterModel } from './types';
 import { INITIAL_PROSPECTS, INITIAL_CRM_RECORDS, DEFAULT_ICP_CONFIG, DEFAULT_OPENROUTER_MODELS } from './data/mockData';
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('merqato_authed_5309') === 'true';
+  });
   const [activeTab, setActiveTab] = useState<string>('leads');
   const [isAgentDrawerOpen, setIsAgentDrawerOpen] = useState(false);
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>(DEFAULT_OPENROUTER_MODELS);
@@ -283,6 +287,15 @@ export default function App() {
         models={openRouterModels}
         selectedModel={selectedModel}
         setSelectedModel={setSelectedModel}
+      />
+
+      {/* Passkey Access Gate (Code 5309) */}
+      <PasskeyModal
+        isOpen={!isAuthenticated}
+        onAuthenticate={() => {
+          localStorage.setItem('merqato_authed_5309', 'true');
+          setIsAuthenticated(true);
+        }}
       />
     </div>
   );

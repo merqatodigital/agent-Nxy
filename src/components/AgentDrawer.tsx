@@ -65,13 +65,15 @@ export const AgentDrawer: React.FC<AgentDrawerProps> = ({
           <div className="p-4 bg-[#050505] border-b grid-line flex items-center justify-between gap-3 shrink-0">
             {/* Left: Agent Info */}
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 bg-emerald-500/10 border border-emerald-500/40 rounded-xl flex items-center justify-center glow-emerald shrink-0">
-                <Bot className="w-5 h-5 text-emerald-400" />
+              <div className="w-8 h-8 bg-emerald-500/10 border border-emerald-500/40 rounded-lg flex items-center justify-center shrink-0 glow-emerald">
+                <Bot className="w-4 h-4 text-emerald-400" />
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h2 className="text-sm font-bold text-white uppercase terminal-font">
-                    Nyx SDR Agent Panel
+                  <h2 className="text-sm font-extrabold text-white uppercase terminal-font flex items-center gap-1">
+                    <span>merqato</span>
+                    <span className="text-[#B90000]">.digital</span>
+                    <span className="text-emerald-400 font-bold ml-1">// NYX AGENT</span>
                   </h2>
                   <span className="flex h-2 w-2 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

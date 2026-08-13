@@ -160,10 +160,10 @@ export const DEFAULT_OPENROUTER_MODELS: OpenRouterModel[] = [
 ];
 
 export const DEFAULT_ICP_CONFIG: ICPConfig = {
-  companyBio: 'AutoScale Systems - AI-powered Workflow & Lead Enrichment Platform for B2B Agencies & Small SaaS.',
-  targetIndustry: 'B2B Software, Marketing Agencies & IT Consultancies',
-  valueProposition: 'Automate manual SDR research, qualify inbound/outbound leads 10x faster, and boost meeting conversion by 35%.',
-  offeringDescription: 'Autonomous SDR agent loop that scrapes prospect sites, checks CRM history, and writes human-quality personalized cold emails.',
+  companyBio: 'merqato.digital - AI-powered Outbound GTM & SDR Platform driving predictable B2B sales growth.',
+  targetIndustry: 'B2B Software, Digital Agencies & Tech Consultancies',
+  valueProposition: 'Automate manual SDR research, qualify B2B leads 10x faster, and boost meeting conversion by 35%.',
+  offeringDescription: 'Autonomous SDR agent loop that scrapes prospect sites, checks CRM history, and writes high-converting personalized cold emails.',
   primaryPainPoints: [
     'High SDR churn and expensive manual research hours',
     'Low cold email response rates due to generic templates',
@@ -172,7 +172,7 @@ export const DEFAULT_ICP_CONFIG: ICPConfig = {
   callToAction: '15-minute quick workflow review & interactive SDR demo',
   senderName: 'Alex Rivera',
   senderRole: 'Head of Growth',
-  senderCompany: 'AutoScale Systems'
+  senderCompany: 'merqato.digital'
 };
 
 export const INITIAL_CRM_RECORDS: CRMRecord[] = [
