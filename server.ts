@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
+import { GoogleGenAI } from '@google/genai';
 import { INITIAL_CRM_RECORDS, INITIAL_PROSPECTS, DEFAULT_ICP_CONFIG, MOCK_SCRAPED_SITES, DEFAULT_OPENROUTER_MODELS } from './src/data/mockData.js';
 import { ProspectLead, CRMRecord, OutboundDraft, ICPConfig, ScrapedWebsiteData, AgentStepResponse } from './src/types.js';
 import { nyxRuntime } from './server/agent/runtime.js';
@@ -10,11 +11,47 @@ dotenv.config();
 
 const PORT = 3000;
 
-// Stateful In-Memory Collections
+// Lazy initialization helper for Gemini SDK (Server-Side)
+let geminiClientInstance: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI | null {
+  if (!geminiClientInstance && process.env.GEMINI_API_KEY) {
+    geminiClientInstance = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  }
+  return geminiClientInstance;
+}
+
+// Inbound Email & Orders collections
+export interface InboundEmailMessage {
+  id: string;
+  fromEmail: string;
+  fromName: string;
+  companyName: string;
+  subject: string;
+  body: string;
+  receivedAt: string;
+  sentiment: 'Interested' | 'Order Request' | 'Objection' | 'Question';
+  status: 'Unread' | 'Replied' | 'Order Converted';
+  aiSuggestedReply?: string;
+}
+
 let crmRecords: CRMRecord[] = [...INITIAL_CRM_RECORDS];
 let prospectLeads: ProspectLead[] = [...INITIAL_PROSPECTS];
 let outboundDrafts: OutboundDraft[] = [];
 let icpConfig: ICPConfig = { ...DEFAULT_ICP_CONFIG };
+let inboundMessages: InboundEmailMessage[] = [
+  {
+    id: 'inbound-101',
+    fromEmail: 'david@apexlogistics.com',
+    fromName: 'David Miller',
+    companyName: 'Apex Logistics Group',
+    subject: 'Re: Apex Logistics Group + merqato.digital: Streamlining Operational Workflows',
+    body: "Hi Nyx team,\n\nThanks for reaching out! We are definitely interested in automating our outbound lead qualification and cold email loops. Could you send over an order confirmation link or invoice for the $2,500 B2B SDR automation package?",
+    receivedAt: new Date(Date.now() - 3600000).toISOString(),
+    sentiment: 'Order Request',
+    status: 'Unread',
+    aiSuggestedReply: "Hi David, thrilled to hear from you! Your B2B SDR Automation package order (#ord-9402) has been processed and onboarding is now active."
+  }
+];
 
 // Connect runtime context
 nyxRuntime.setContextProvider(() => ({
@@ -34,10 +71,16 @@ async function startServer() {
   // --- API ROUTES ---
 
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({
+      status: 'ok',
+      geminiConnected: Boolean(process.env.GEMINI_API_KEY),
+      openRouterConnected: Boolean(process.env.OPENROUTER_API_KEY),
+      resendConnected: Boolean(process.env.RESEND_API_KEY),
+      timestamp: new Date().toISOString()
+    });
   });
 
-  // Interactive Chat with Nyx AI Agent (OpenRouter + Dynamic Agent Execution)
+  // Interactive Chat with Nyx AI Agent (Gemini + OpenRouter + Agent Runtime)
   app.post('/api/chat/nyx', async (req, res) => {
     const { messages, openRouterApiKey, selectedModel } = req.body;
     if (!messages || !Array.isArray(messages)) {
@@ -47,13 +90,13 @@ async function startServer() {
     const userQuery = messages[messages.length - 1]?.content || 'Hello Nyx';
     const q = userQuery.toLowerCase();
 
-    const systemContext = `You are Nyx, an elite autonomous AI SDR (Sales Development Representative) Agent powering B2B outbound prospecting and sales growth.
-You operate using an agentic Thought-Action-Observation framework.
+    const systemContext = `You are Nyx, an elite autonomous AI SDR (Sales Development Representative) Agent powering B2B outbound prospecting, sales outreach, and deal conversions for merqato.digital.
 Current SDR Pipeline State:
-- Target Prospect Leads (${prospectLeads.length}): ${prospectLeads.map(l => `${l.companyName} (${l.contactName}, ${l.contactEmail}, ${l.industry})`).join(' | ')}
+- Target Prospect Leads (${prospectLeads.length}): ${prospectLeads.map(l => `${l.companyName} (${l.contactName}, ${l.contactEmail}, ${l.industry}, Status: ${l.status})`).join(' | ')}
 - ICP Configuration: Sender ${icpConfig.senderName} (${icpConfig.senderRole} at ${icpConfig.senderCompany}). Bio: "${icpConfig.companyBio}". Value Prop: "${icpConfig.valueProposition}". CTA: "${icpConfig.callToAction}".
 - CRM Accounts (${crmRecords.length}): ${crmRecords.map(c => `${c.companyName} [${c.lifecycleStage}, Spent: $${c.totalSpend}]`).join(' | ')}
-- Outbound Drafts queued: ${outboundDrafts.length} drafts
+- Outbound Drafts Queued: ${outboundDrafts.length} drafts
+- Inbound Messages Received: ${inboundMessages.length} messages
 
 CRITICAL FORMATTING & EXECUTABILITY GUIDELINES FOR NYX:
 - Keep text responses concise, articulate, and executive (2-4 sentences max per section).
@@ -62,7 +105,29 @@ CRITICAL FORMATTING & EXECUTABILITY GUIDELINES FOR NYX:
 - Always structure output under clear executive headers: "Executive Summary", "Pipeline Data", "Strategic Action Plan".
 - Focus on actionable B2B outcomes and decision-grade metrics.`;
 
-    // 1. Try OpenRouter API if key provided
+    // 1. Try Gemini API first if GEMINI_API_KEY available
+    const geminiAi = getGeminiClient();
+    if (geminiAi) {
+      try {
+        const fullPrompt = `${systemContext}\n\nUser Question/Directive: "${userQuery}"\n\nProvide an executive response answering the user directly based on current SDR state.`;
+        const geminiRes = await geminiAi.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [{ role: 'user', parts: [{ text: fullPrompt }] }]
+        });
+        const replyText = geminiRes.text;
+        if (replyText) {
+          return res.json({
+            reply: replyText,
+            provider: 'Google Gemini (gemini-2.5-flash)',
+            status: 'success'
+          });
+        }
+      } catch (err) {
+        console.warn('Gemini chat API error, trying alternative providers:', err);
+      }
+    }
+
+    // 2. Try OpenRouter API if key provided
     const apiKeyToUse = openRouterApiKey || process.env.OPENROUTER_API_KEY;
     if (apiKeyToUse) {
       try {
@@ -103,6 +168,7 @@ CRITICAL FORMATTING & EXECUTABILITY GUIDELINES FOR NYX:
         console.warn('OpenRouter chat error, defaulting to dynamic agentic engine:', err);
       }
     }
+
 
     // 2. Real Autonomous Agent Runtime Interactions
     if (q.includes('google.com/maps') || q.includes('maps.app.goo.gl') || q.includes('g.page') || q.includes('google business')) {
